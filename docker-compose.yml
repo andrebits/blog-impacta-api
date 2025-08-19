@@ -1,11 +1,12 @@
 version: "3"
 services:
-  # db: 
-  #   image: postgres:latest
-  #   env_file:
-  #     - .env
-  #   volumes:
-  #     - data:/var/lib/postgresql/data
+  db: 
+    image: postgres:latest
+    env_file:
+      - .env
+    volumes:
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+      - data:/var/lib/postgresql/data
 
   api:
     build: 
@@ -17,8 +18,8 @@ services:
       - ./:/app
     env_file:
       - .env
-    # depends_on:
-    #   - db
+    depends_on:
+      - db
   
 
   # nginx: # Reverse proxy, mainly used to access container by service name, v.g. api/
@@ -31,6 +32,6 @@ services:
   #     - app
   #   ports:
   #     - "3456:3456"
-# volumes:
-#   data:
+volumes:
+  data:
   

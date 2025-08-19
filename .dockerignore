@@ -61,5 +61,5 @@ Dockerfile
 # =========================
 # Arquivos de ambiente
 # =========================
-.env
-.env.*
+# .env
+# .env.*
