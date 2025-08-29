@@ -3,7 +3,12 @@
 Esse projeto é parte integrante do projeto de conclusão do curso de Análise e Desenvolvimento da Impacta 2025.
 
 ## API 
-Serve os dados de um sistema de blog. 
+
+Serve os dados de um sistema de blog. No momento, os dados são consumidos apenas pelo webapp cujo repositório pode ser acessado [aqui](https://github.com/andrebits/blog-impacta-webapp#blog-impacta).
+
+## Board 
+
+O board do projeto pode ser encontrado [aqui](https://trello.com/b/P8kvklUn).
 
 ### Linguagens e Tecnologias
 
