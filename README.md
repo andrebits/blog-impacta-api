@@ -1,4 +1,4 @@
-# Blog API 
+# Blog Impacta 
 
 Esse projeto é parte integrante do projeto de conclusão do curso de Análise e Desenvolvimento da Impacta 2025.
 
