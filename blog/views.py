@@ -4,7 +4,7 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework import status
 from .models import Post, Comment
 from django.contrib.auth.models import User
-from .serializers import PostSerializer, CommentSerializer, UserSerializer
+from .serializers import PostSerializer, CommentSerializer, UserSerializer, ChangePasswordSerializer
 from drf_spectacular.utils import extend_schema, OpenApiExample, OpenApiRequest
 from django.urls import reverse
 
@@ -36,6 +36,47 @@ def register_user(request):
         
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
  
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_user(request):
+    serializer = UserSerializer(request.user)
+    return Response(serializer.data)
+    
+
+@extend_schema(
+        request=OpenApiRequest(
+            ChangePasswordSerializer,
+            examples=[
+                OpenApiExample(
+                    name='Change password',
+                    value={
+                        'current_password': '123',
+                        'new_password': '456',
+                    },
+                    request_only=True
+                )
+            ]
+        ),
+        description='Register new user', responses=UserSerializer(many=True))
+@api_view(['PUT'])
+@permission_classes([IsAuthenticated])
+def change_password(request):
+    serializer = ChangePasswordSerializer(data=request.data, instance=request.user)
+
+    if serializer.is_valid():
+        user = request.user
+
+        if not user.check_password(serializer.validated_data['old_password']):
+            return Response({"old_password": "Senha atual inválida"},
+                            status=status.HTTP_401_UNAUTHORIZED)
+        
+        user.set_password(serializer.validated_data["new_password"])
+        user.save()
+
+        return Response({"datail": "Senha alterada com sucesso!"}, status=status.HTTP_200_OK)
+    
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 ##### Posts ##### 
 

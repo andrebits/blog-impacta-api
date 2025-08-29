@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
+from django.contrib.auth.password_validation import validate_password
 from .models import Post, Comment
 
 class UserSerializer(serializers.ModelSerializer):
@@ -16,6 +17,18 @@ class UserSerializer(serializers.ModelSerializer):
             password=validated_data['password']
         )
         return user
+
+class ChangePasswordSerializer(serializers.ModelSerializer):
+    old_password = serializers.CharField(write_only=True, required=True)
+    new_password = serializers.CharField(write_only=True, required=True)
+
+    class Meta:
+        model = User
+        fields = ['old_password', 'new_password']
+
+    def validate_new_password(self, value):
+        validate_password(value)
+        return value
 
 class PostSerializer(serializers.ModelSerializer):
     author = serializers.StringRelatedField()
