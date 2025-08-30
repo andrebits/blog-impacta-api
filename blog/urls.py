@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import posts_list, comments_list, get_post_by_id, get_comment_by_post_id, get_post_by_author, create_post, create_comment, update_post, delete_post, delete_comment, register_user, get_user, change_password
+from .views import posts_list, comments_list, get_post_by_id, get_comment_by_post_id, get_post_by_author, create_post, create_comment, update_post, delete_post, delete_comment, register_user, get_user, change_password, delete_user
 
 urlpatterns = [
 
@@ -7,6 +7,7 @@ urlpatterns = [
     path('user/registration/', register_user, name = 'post_list'), # POST
     path('user/', get_user, name = 'get_user'), # GET
     path('user/change_password', change_password, name = 'change_password'), # PUT
+    path('user/delete', delete_user, name = 'delete_user'), # DELETE
 
     # posts
     path('posts/', posts_list, name = 'post_list'), # GET

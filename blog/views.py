@@ -75,8 +75,20 @@ def change_password(request):
         user.save()
 
         return Response({"datail": "Senha alterada com sucesso!"}, status=status.HTTP_200_OK)
-    
+
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+@extend_schema(description='Delete authenticated user', request=UserSerializer, responses=UserSerializer)
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated])
+def delete_user(request):
+    try:
+        user = request.user
+        user.delete()
+        return Response({"detail": "Conta excluída com sucesso"}, status=status.HTTP_204_NO_CONTENT)
+    except User.DoesNotExist:
+        return Response({"detail": "Conta não encontrada"}, status=status.HTTP_404_NOT_FOUND)
+
 
 ##### Posts ##### 
 
