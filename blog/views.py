@@ -7,6 +7,7 @@ from django.contrib.auth.models import User
 from .serializers import PostSerializer, CommentSerializer, UserSerializer, ChangePasswordSerializer
 from drf_spectacular.utils import extend_schema, OpenApiExample, OpenApiRequest
 from django.urls import reverse
+from bs4 import BeautifulSoup
 
 
 ##### Users ##### 
@@ -98,12 +99,22 @@ def delete_user(request):
 def posts_list(request):
     posts = Post.objects.order_by('-created_at')
     serializer = PostSerializer(posts, many=True)
-    return Response(serializer.data)
+    data = serializer.data.copy()
+
+    # Itera em cada post
+    for item in data:
+        if "content" in item and item["content"]:
+            soup = BeautifulSoup(item["content"], "html.parser")
+            clean_text = soup.get_text()[:500]
+            last_space = clean_text.rfind(".")
+            item["content"] = clean_text[:last_space] + "..."
+
+    return Response(data)
 
 
 @extend_schema(description='Retrieve the post with the specified ID', responses=PostSerializer(many=True))
 @api_view(['GET'])
-@permission_classes([IsAuthenticated])
+@permission_classes([AllowAny])
 def get_post_by_id(request, id):
     try:
         post = Post.objects.get(id=id)
@@ -179,15 +190,13 @@ def delete_post(request, post_id):
     except Post.DoesNotExist:
         return Response({'error': 'Post not found'}, status=status.HTTP_404_NOT_FOUND)
 
-    if post.author is not request.user:
-        
-        if not request.user.is_superuser:
-            return Response({'error': 'Access denied. Only the author or staff can delete a post'}, status=status.HTTP_401_UNAUTHORIZED)
-        if not request.user.is_staff:
-            return Response({'error': 'Access denied. Only the author or staff can delete a post'}, status=status.HTTP_401_UNAUTHORIZED)
+    
+    if post.author != request.user and not (request.user.is_superuser or request.user.is_staff):
+        return Response({'error': 'Access denied. Only the author or staff can delete a post'}, status=status.HTTP_403_FORBIDDEN)
+       
 
     post.delete()
-    return Response({'message': f'The post "{post.title}" was successfully deleted'}, status=status.HTTP_200_OK)
+    return Response({'message': f'The post "{post.title}" was successfully deleted'}, status=status.HTTP_204_NO_CONTENT)
 
 
 ##### Comments ##### 
