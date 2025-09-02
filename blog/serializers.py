@@ -37,6 +37,11 @@ class PostSerializer(serializers.ModelSerializer):
         fields = ['id', 'title', 'author', 'content', 'created_at', 'updated_at']
         read_only_fields = ['id', 'author', 'created_at', 'updated_at']
 
+class PostAuthorSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Post
+        fields = ["author"]
+        
 class CommentSerializer(serializers.ModelSerializer):
     author = serializers.StringRelatedField()
     class Meta:

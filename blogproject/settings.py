@@ -64,8 +64,8 @@ REST_FRAMEWORK = {
 }
 
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),    # Access token lifetime
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),        # Refresh token lifetime
+    'ACCESS_TOKEN_LIFETIME': timedelta(days=1),    # Access token lifetime
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=3),        # Refresh token lifetime
 }
 
 SPECTACULAR_SETTINGS = {

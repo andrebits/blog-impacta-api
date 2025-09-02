@@ -4,7 +4,7 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework import status
 from .models import Post, Comment
 from django.contrib.auth.models import User
-from .serializers import PostSerializer, CommentSerializer, UserSerializer, ChangePasswordSerializer
+from .serializers import PostSerializer, CommentSerializer, UserSerializer, ChangePasswordSerializer, PostAuthorSerializer
 from drf_spectacular.utils import extend_schema, OpenApiExample, OpenApiRequest
 from django.urls import reverse
 from bs4 import BeautifulSoup
@@ -44,6 +44,19 @@ def get_user(request):
     serializer = UserSerializer(request.user)
     return Response(serializer.data)
     
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def get_user_by_id(request, id):
+    try:
+        user = User.objects.get(id=id)
+        posts = Post.objects.filter(author=user).order_by('-created_at')
+        serializer = PostSerializer(posts, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response({"error": e}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
 
 @extend_schema(
         request=OpenApiRequest(
@@ -106,8 +119,11 @@ def posts_list(request):
         if "content" in item and item["content"]:
             soup = BeautifulSoup(item["content"], "html.parser")
             clean_text = soup.get_text()[:500]
-            last_space = clean_text.rfind(".")
-            item["content"] = clean_text[:last_space] + "..."
+            cut = clean_text.rfind(".")
+            if len(clean_text) < 500:
+                cut = None
+            
+            item["content"] = clean_text[:cut] + "..."
 
     return Response(data)
 
@@ -127,20 +143,20 @@ def get_post_by_id(request, id):
 
 @extend_schema(description='Retrieve all post with the specified author', responses=PostSerializer(many=True))
 @api_view(['GET'])
-@permission_classes([IsAuthenticated])
+@permission_classes([AllowAny])
 def get_post_by_author(request, author):
     try:
         user = User.objects.get(username=author)
-        post = Post.objects.filter(author=user)
+        post = Post.objects.filter(author=user).order_by('-created_at')
 
         if(post.count() == 0):
-            return Response({'error': 'Post not found'}, status=status.HTTP_404_NOT_FOUND)
+            return Response({'error': 'Post not found'}, status=status.HTTP_204_NO_CONTENT)
         
         serializer = PostSerializer(post, many=True)
         return Response(serializer.data)
     
     except User.DoesNotExist:
-        return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+        return Response({'error': 'Author not found'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
 
 @extend_schema(description='Create a new post', request=PostSerializer, responses=PostSerializer)
@@ -155,7 +171,7 @@ def create_post(request):
         headers= {'Location':  reverse('get_post_by_id', args=[post.pk])}
         return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
     
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    return Response(serializer.errors, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @extend_schema(description='Update an existing post', request=PostSerializer, responses=PostSerializer)
@@ -198,6 +214,28 @@ def delete_post(request, post_id):
     post.delete()
     return Response({'message': f'The post "{post.title}" was successfully deleted'}, status=status.HTTP_204_NO_CONTENT)
 
+##### Authors ##### 
+
+@extend_schema(description='Retrieve all authors', responses=PostAuthorSerializer(many=True))
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def get_authors(request):
+    try:
+        # post = Post.objects.group_by('author').order_by('-created_at')
+        # post = Post.objects.values('author').distinct().order_by('author')
+        authors = Post.objects.select_related('author') \
+                      .values('author__username', 'author__id') \
+                      .distinct() \
+                      .order_by('author__username')
+
+        if(authors.count() == 0):
+            return Response({'error': 'None author not found'}, status=status.HTTP_204_NO_CONTENT)
+        
+        return Response(list(authors), status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response({'error': e}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    
 
 ##### Comments ##### 
 
