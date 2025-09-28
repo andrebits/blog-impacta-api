@@ -34,7 +34,7 @@ class PostSerializer(serializers.ModelSerializer):
     author = serializers.StringRelatedField()
     class Meta:
         model = Post
-        fields = ['id', 'title', 'author', 'content', 'created_at', 'updated_at']
+        fields = ['id', 'title', 'author', 'content', 'tags', 'created_at', 'updated_at']
         read_only_fields = ['id', 'author', 'created_at', 'updated_at']
 
 class PostAuthorSerializer(serializers.ModelSerializer):
@@ -47,4 +47,25 @@ class CommentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Comment
         fields = ['id', 'author', 'content', 'post_id', 'created_at', 'updated_at']
-        read_only_fields = ['id', 'author',  'post_id','created_at', 'updated_at']
+        read_only_fields = ['post_id','created_at', 'updated_at']
+
+
+class CommentWithPostSerializer(serializers.ModelSerializer):
+    author = serializers.StringRelatedField()
+    post_title = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Comment
+        fields = [
+            'id',
+            'author',
+            'content',
+            'post_id',
+            'post_title',
+            'created_at',
+            'updated_at'
+        ]
+        read_only_fields = ['id', 'post_id', 'post_title', 'created_at', 'updated_at']
+
+    def get_post_title(self, obj):
+        return obj.post_id.title if obj.post_id else None

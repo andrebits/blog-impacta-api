@@ -4,10 +4,11 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework import status
 from .models import Post, Comment
 from django.contrib.auth.models import User
-from .serializers import PostSerializer, CommentSerializer, UserSerializer, ChangePasswordSerializer, PostAuthorSerializer
+from .serializers import PostSerializer, CommentSerializer, UserSerializer, ChangePasswordSerializer, PostAuthorSerializer, CommentWithPostSerializer
 from drf_spectacular.utils import extend_schema, OpenApiExample, OpenApiRequest
 from django.urls import reverse
 from bs4 import BeautifulSoup
+from django.db.models import Q
 
 
 ##### Users ##### 
@@ -110,7 +111,12 @@ def delete_user(request):
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def posts_list(request):
-    posts = Post.objects.order_by('-created_at')
+    query = request.GET.get("q", "")
+    # posts = Post.objects.order_by('-created_at')
+    posts = Post.objects.filter(
+            Q(title__icontains=query) | Q(content__icontains=query)
+        ).order_by('-created_at')
+    
     serializer = PostSerializer(posts, many=True)
     data = serializer.data.copy()
 
@@ -157,7 +163,49 @@ def get_post_by_author(request, author):
     
     except User.DoesNotExist:
         return Response({'error': 'Author not found'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-    
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def posts_by_tag(request):
+    """
+    Retorna posts que possuem a tag informada
+    Exemplo: /api/posts-by-tag/?tag=python
+    """
+    tag = request.GET.get("tag", "").strip().lower()
+    try:
+        if not tag:
+            return Response({"error": "Parâmetro 'tag' é obrigatório."}, status=400)
+
+        posts = Post.objects.filter(
+            Q(tags__icontains=tag)  # busca a tag no campo "tags"
+        )
+
+        # Filtra exatamente a tag, considerando que podem estar separadas por vírgula
+        result = []
+        for post in posts:
+            post_tags = [t.strip().lower() for t in post.tags.split(",") if t.strip()]
+            if tag in post_tags:
+                result.append(post)
+
+        serializer = PostSerializer(result, many=True)
+        data = serializer.data.copy()
+
+        # Itera em cada post
+        for item in data:
+            if "content" in item and item["content"]:
+                soup = BeautifulSoup(item["content"], "html.parser")
+                clean_text = soup.get_text()[:500]
+                cut = clean_text.rfind(".")
+                if len(clean_text) < 500:
+                    cut = None
+                
+                item["content"] = clean_text[:cut] + "..."
+        return Response(data, status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response({"error": e}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+ 
+
 
 @extend_schema(description='Create a new post', request=PostSerializer, responses=PostSerializer)
 @api_view(['POST'])
@@ -214,6 +262,37 @@ def delete_post(request, post_id):
     post.delete()
     return Response({'message': f'The post "{post.title}" was successfully deleted'}, status=status.HTTP_204_NO_CONTENT)
 
+
+#####   Tags   ###### 
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def tags_search(request):
+    """
+    Retorna todas as tags únicas que começam com a query
+    Exemplo: /api/tags-search/?q=py -> ["python", "pytorch"]
+    """
+    query = request.GET.get("q", "").strip().lower()
+
+    posts = Post.objects.exclude(tags__isnull=True).exclude(tags__exact="")
+
+    tags = []
+    for post in posts:
+        post_tags = [tag.strip() for tag in post.tags.split(",") if tag.strip()]
+        tags.extend(post_tags)
+
+    # Normaliza para comparar lowercase mas mantém o valor original
+    unique_tags = sorted(set(tags))
+    filtered_tags = [
+        # tag for tag in unique_tags if tag.lower().startswith(query)
+        tag for tag in unique_tags if query.lower() in tag.lower()
+    ] if query else unique_tags
+
+    return Response(filtered_tags)
+
+
+
+
 ##### Authors ##### 
 
 @extend_schema(description='Retrieve all authors', responses=PostAuthorSerializer(many=True))
@@ -235,7 +314,7 @@ def get_authors(request):
     except Exception as e:
         return Response({'error': e}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
-    
+ 
 
 ##### Comments ##### 
 
@@ -244,16 +323,48 @@ def get_authors(request):
 @permission_classes([AllowAny])
 def get_comment_by_post_id(request, post_id):
     try:
-        comments = Comment.objects.filter(post_id=post_id)
+        comments = Comment.objects.filter(post_id=post_id).order_by('-created_at')
 
         if(comments.count() == 0):
             return Response({'error': 'Comments not found'}, status=status.HTTP_404_NOT_FOUND)
 
-        serialize =CommentSerializer(comments, many=True)
+        serialize =CommentWithPostSerializer(comments, many=True)
         return Response(serialize.data)
     
     except Comment.DoesNotExist:
         return Response({'error': 'There is no comment for this post'}, status=status.HTTP_404_NOT_FOUND)
+
+
+
+@extend_schema(description='Retrieve all post with the specified author', responses=CommentWithPostSerializer(many=True))
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_comments_by_author(request, author):
+    try:
+        user = User.objects.get(username=author)
+        comments = Comment.objects.filter(author=user).order_by('-created_at')
+
+        if(comments.count() == 0):
+            return Response({'error': 'Comments not found'}, status=status.HTTP_204_NO_CONTENT)
+        
+        serializer = CommentWithPostSerializer(comments, many=True)
+        return Response(serializer.data)
+    
+    except User.DoesNotExist:
+        return Response({'error': 'Author not found'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@extend_schema(description='Retrieve the comment with the specified ID', responses=CommentWithPostSerializer(many=True))
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_comment_by_id(request, id):
+    try:
+        comment = Comment.objects.get(id=id)
+        serialize = CommentWithPostSerializer(comment)
+        return Response(serialize.data)
+    
+    except Comment.DoesNotExist:
+        return Response({'error': 'Post not found'}, status=status.HTTP_404_NOT_FOUND)
 
 
 @extend_schema(description='Retrieve all comments', responses=PostSerializer(many=True))
@@ -283,6 +394,27 @@ def create_comment(request, post_id):
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
+@extend_schema(description='Update an existing comment', request=CommentSerializer, responses=CommentSerializer)
+@api_view(['PATCH'])
+@permission_classes([IsAuthenticated])
+def update_comment(request, comment_id):
+   
+    try:
+        comment = Comment.objects.get(id=comment_id)
+
+    except comment.DoesNotExist:
+        return Response({'error': 'Post not found'}, status=status.HTTP_204_NO_CONTENT)
+
+    serializer = CommentSerializer(comment, data=request.data, partial=True)
+    
+    if (serializer.is_valid()):
+        serializer.save()
+        
+        return Response(serializer.data, status=status.HTTP_200_OK,)
+        
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
 @extend_schema(description='Delete the comment with the specified ID', request=PostSerializer, responses=PostSerializer)
 @api_view(['DELETE'])
 @permission_classes([IsAuthenticated])
@@ -294,8 +426,8 @@ def delete_comment(request, comment_id):
     except Comment.DoesNotExist:
         return Response({'error': 'Comment not found'}, status=status.HTTP_404_NOT_FOUND)
 
-    if comment.author is not request.user:
-        
+    if comment.author != request.user:
+
         if not request.user.is_superuser:
             return Response({'error': 'Access denied. Only the author or staff can delete a comment'}, status=status.HTTP_401_UNAUTHORIZED)
         if not request.user.is_staff:
